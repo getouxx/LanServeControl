@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>服务器桌面查看器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            background-color: white;
+            width: 100%;
+            max-width: 400px;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .login-container:hover {
+            transform: translateY(-5px);
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .login-header h2 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        
+        .login-header p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.7rem;
+            color: #34495e;
+            font-weight: 500;
+        }
+        
+        input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 1px solid #bdc3c7;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+        
+        button {
+            width: 100%;
+            padding: 0.9rem;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .error {
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 1.2rem;
+            padding: 0.8rem;
+            background-color: #fef5f5;
+            border-radius: 6px;
+            border: 1px solid #ffe3e3;
+            font-size: 0.9rem;
+        }
+        
+        .footer-note {
+            text-align: center;
+            margin-top: 1.5rem;
+            color: #95a5a6;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h2>服务器桌面查看器</h2>
+            <p>请输入访问密钥以继续</p>
+        </div>
+        
+        <form method="POST">
+            <div class="form-group">
+                <label for="key">访问密钥</label>
+                <input type="password" id="key" name="key" required placeholder="请输入密钥">
+            </div>
+            <button type="submit">安全登录</button>
+            
+            {% if error %}
+                <div class="error">{{ error }}</div>
+            {% endif %}
+            
+            <div class="footer-note">
+                请确保您拥有访问权限 | 保护您的密钥安全
+            </div>
+        </form>
+    </div>
+</body>
+</html>

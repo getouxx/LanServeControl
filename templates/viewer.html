@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="screen-orientation" content="autoRotate">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>服务器桌面查看器</title>
+    <style>
+        :root {
+            --primary-color: #165DFF;
+            --secondary-color: #36CFC9;
+            --danger-color: #F53F3F;
+            --warning-color: #FF7D00;
+            --success-color: #00B42A;
+            --text-color: #1D2129;
+            --text-light: #86909C;
+            --border-color: #E5E6EB;
+            --bg-color: #F2F3F5;
+            --card-bg: #FFFFFF;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            height: 100%;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header h1 svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--primary-color);
+        }
+
+        .status-panel {
+            display: flex;
+            gap: 16px;
+            padding: 12px 20px;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-label {
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        .status-value {
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .indicator-connected {
+            background-color: var(--success-color);
+            animation: pulse 2s infinite;
+        }
+
+        .indicator-authenticated {
+            background-color: var(--success-color);
+        }
+
+        .indicator-waiting {
+            background-color: var(--warning-color);
+        }
+
+        .indicator-error {
+            background-color: var(--danger-color);
+        }
+
+        .indicator-paused {
+            background-color: var(--warning-color);
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        @keyframes blink {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        .main-content {
+            display: flex;
+            gap: 16px;
+            flex: 1;
+            height: calc(100vh - 240px);
+            min-height: 400px;
+        }
+
+        .screen-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            height: 100%;
+        }
+
+        .screen-container {
+            position: relative;
+            background-color: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 400px;
+        }
+
+        /* 暂停状态覆盖层 */
+        .pause-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.3);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            backdrop-filter: blur(2px);
+        }
+
+        .pause-overlay.active {
+            display: flex;
+        }
+
+        .pause-overlay-content {
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+        }
+
+        .pause-overlay-content svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--warning-color);
+        }
+
+        .screen-content {
+            position: relative;
+            width: 100%;
+            height: 0;
+            padding-top: 56.25%;
+            overflow: hidden;
+        }
+
+        .screen-inner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #screen-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            width: auto;
+            height: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .screen-placeholder {
+            text-align: center;
+            color: var(--text-light);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .screen-placeholder svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            fill: var(--text-light);
+        }
+
+        .control-section {
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            height: 100%;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .card-title svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--primary-color);
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            transition: var(--transition);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(22, 93, 255, 0.1);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: var(--transition);
+            border: none;
+            gap: 8px;
+        }
+
+        .control-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: none;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            transition: var(--transition);
+        }
+
+        .control-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .shutdown-btn {
+            background-color: rgba(245, 63, 63, 0.1);
+            color: var(--danger-color);
+        }
+
+        .restart-btn {
+            background-color: rgba(255, 125, 0, 0.1);
+            color: var(--warning-color);
+        }
+
+        .logout-btn {
+            background-color: rgba(22, 93, 255, 0.1);
+            color: var(--primary-color);
+        }
+
+        /* 暂停按钮样式 - 电脑端 */
+        .pause-btn {
+            background-color: rgba(255, 125, 0, 0.1);
+            color: var(--warning-color);
+        }
+
+        .resume-btn {
+            background-color: rgba(0, 180, 42, 0.1);
+            color: var(--success-color);
+        }
+
+        .log-section {
+            overflow: hidden;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 8px;
+        }
+
+        .log-title {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .log-title svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--primary-color);
+        }
+
+        .log-clear {
+            font-size: 12px;
+            color: var(--text-light);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .log-clear:hover {
+            color: var(--danger-color);
+            background-color: rgba(245, 63, 63, 0.05);
+        }
+
+        #connection-log {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-color);
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 8px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary-color) transparent;
+        }
+
+        #connection-log::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #connection-log::-webkit-scrollbar-thumb {
+            background-color: var(--primary-color);
+            border-radius: 3px;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .log-entry.hidden {
+            display: none;
+        }
+
+        .log-entry .timestamp {
+            color: var(--primary-color);
+            margin-right: 8px;
+            font-weight: 500;
+        }
+
+        .log-entry.error .timestamp {
+            color: var(--danger-color);
+        }
+
+        .log-entry.warning .timestamp {
+            color: var(--warning-color);
+        }
+
+        .log-controls {
+            display: flex;
+            justify-content: center;
+            padding: 10px 0 4px;
+        }
+
+        .log-toggle-btn {
+            font-size: 13px;
+            color: var(--primary-color);
+            background-color: rgba(22, 93, 255, 0.08);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .log-toggle-btn:hover {
+            background-color: rgba(22, 93, 255, 0.15);
+        }
+
+        .log-toggle-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+
+        .footer-actions {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            margin-top: 8px;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        #screen-image:-webkit-full-screen,
+        #screen-image:-moz-full-screen,
+        #screen-image:fullscreen,
+        #screen-image:-ms-fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
+            background-color: #000 !important;
+            z-index: 9999 !important;
+        }
+
+        .fullscreen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 9998;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .fullscreen-exit-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10000;
+            backdrop-filter: blur(4px);
+        }
+
+        :fullscreen .fullscreen-exit-btn,
+        :-webkit-full-screen .fullscreen-exit-btn,
+        :-moz-full-screen .fullscreen-exit-btn,
+        :-ms-fullscreen .fullscreen-exit-btn {
+            display: flex;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) { 
+            body { 
+                padding: 8px; 
+                min-height: 100vh;
+            } 
+
+            .app-container { 
+                gap: 12px; 
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+            } 
+
+            .header h1 { 
+                font-size: 18px; 
+            } 
+
+            .status-panel { 
+                flex-wrap: wrap; 
+                padding: 10px 12px; 
+                gap: 10px 16px; 
+            } 
+
+            .status-item { 
+                flex: 1 1 40%; 
+                min-width: 150px; 
+            } 
+
+            .main-content { 
+                flex-direction: column; 
+                height: auto; 
+                min-height: auto; 
+                flex: 1;
+            } 
+
+            .screen-section { 
+                height: 50vh; 
+                min-height: 300px;
+                position: relative;
+            } 
+
+            .screen-container {
+                min-height: 0;
+                height: 100%;
+            }
+
+            /* 移动端暂停覆盖层优化 */
+            .pause-overlay-content {
+                padding: 12px 20px;
+                font-size: 14px;
+            }
+
+            .control-section { 
+                width: 100%; 
+                height: auto; 
+                margin-bottom: 12px;
+            } 
+
+            .control-buttons { 
+                grid-template-columns: repeat(3, 1fr); 
+            } 
+
+            .footer-actions { 
+                flex-wrap: wrap; 
+            } 
+
+            /* 移动端底部按钮布局优化 */
+            .footer-actions .btn, 
+            .footer-actions .control-btn { 
+                flex: 1 1 45%; 
+                min-width: auto;
+                padding: 12px 8px;
+                font-size: 13px;
+            }
+
+            /* 移动端暂停按钮图标优化 */
+            .footer-actions .control-btn svg {
+                width: 18px;
+                height: 18px;
+            }
+
+            .btn, .control-btn { 
+                padding: 14px 16px; 
+            } 
+
+            .form-control { 
+                padding: 14px 16px; 
+                font-size: 15px; 
+            } 
+
+            .mobile-log-section {
+                max-height: 220px;
+                width: 100%;
+            }
+
+            #connection-log {
+                font-size: 12px;
+                line-height: 1.6;
+            }
+
+            .log-entry {
+                padding: 5px 0;
+            }
+
+            .collapsible-section { 
+                position: relative; 
+            } 
+
+            .collapse-header { 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center; 
+                cursor: pointer; 
+            } 
+
+            .collapse-icon { 
+                transition: transform 0.3s ease; 
+            } 
+
+            .collapsed .collapse-icon { 
+                transform: rotate(-180deg); 
+            } 
+
+            .collapse-content { 
+                max-height: 500px; 
+                overflow: hidden; 
+                transition: max-height 0.3s ease; 
+            } 
+
+            .collapsed .collapse-content { 
+                max-height: 0; 
+                padding-top: 0; 
+                padding-bottom: 0; 
+                overflow: hidden; 
+            } 
+
+            @media (orientation: landscape) {
+                .screen-section {
+                    height: 70vh;
+                }
+            }
+        } 
+
+        @media (max-width: 480px) { 
+            .status-item { 
+                flex: 1 1 100%; 
+            } 
+
+            .control-buttons { 
+                grid-template-columns: 1fr 1fr; 
+            } 
+
+            /* 移动端小屏幕底部按钮布局 */
+            .footer-actions {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .footer-actions .btn, 
+            .footer-actions .control-btn { 
+                min-width: 100%; 
+                margin-bottom: 0; 
+            } 
+
+            .screen-section { 
+                height: 45vh; 
+            } 
+
+            .mobile-log-section {
+                max-height: 200px;
+            }
+
+            .log-toggle-btn {
+                width: 100%;
+                padding: 8px 0;
+            }
+        } 
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1>
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 18c-3.314 0-6-2.686-6-6s2.686-6 6-6 6 2.686 6 6-2.686 6-6 6z"/>
+                    <path d="M12 6c-3.314 0-6 2.686-6 6s2.686 6 6 6v-12zm0 10c-2.209 0-4-1.791-4-4s1.791-4 4-4v8z"/>
+                </svg>
+                服务器桌面查看器
+            </h1>
+        </div>
+
+        <div class="status-panel">
+            <div class="status-item">
+                <span class="status-label">连接状态:</span>
+                <span class="status-value">
+                    <span id="connection-indicator" class="status-indicator indicator-waiting"></span>
+                    <span id="connection-status">未连接</span>
+                </span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">认证状态:</span>
+                <span class="status-value">
+                    <span id="auth-indicator" class="status-indicator indicator-waiting"></span>
+                    <span id="auth-status">未认证</span>
+                </span>
+            </div>
+            <!-- 添加画面状态指示器 -->
+            <div class="status-item">
+                <span class="status-label">画面状态:</span>
+                <span class="status-value">
+                    <span id="screen-indicator" class="status-indicator indicator-waiting"></span>
+                    <span id="screen-status">等待中</span>
+                </span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">帧率:</span>
+                <span class="status-value" id="fps">0 FPS</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">图像状态:</span>
+                <span class="status-value" id="image-status">等待中</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="screen-section">
+                <div class="screen-container">
+                    <!-- 暂停覆盖层 -->
+                    <div id="pause-overlay" class="pause-overlay">
+                        <div class="pause-overlay-content">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                            </svg>
+                            <span>画面已暂停</span>
+                        </div>
+                    </div>
+                    
+                    <button class="fullscreen-exit-btn" onclick="toggleFullscreen()">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                            <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+                        </svg>
+                    </button>
+                    <div class="screen-content">
+                        <div class="screen-inner">
+                            <div id="screen-placeholder" class="screen-placeholder">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-1 17h2v-6h-2v6zm0-8h2v-2h-2v2z"/>
+                                </svg>
+                                <p>等待屏幕数据连接...</p>
+                            </div>
+                            <img id="screen-image" src="" alt="屏幕共享" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="card">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-1 17h2v-6h-2v6zm0-8h2v-2h-2v2z"/>
+                        </svg>
+                        身份验证
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="auth-key">访问密钥</label>
+                        <input type="password" id="auth-key" class="form-control" placeholder="请输入访问密钥">
+                    </div>
+                    <button id="authenticate-btn" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                        </svg>
+                        验证
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm6 13h-12v-2h12v2zm0-4h-12v-2h12v2z"/>
+                        </svg>
+                        服务器控制
+                    </div>
+                    <div class="control-buttons">
+                        <button class="control-btn shutdown-btn" onclick="shutdownServer()">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-1 17h2v-6h-2v6zm0-8h2v-2h-2v2z"/>
+                            </svg>
+                            关机
+                        </button>
+                        <button class="control-btn restart-btn" onclick="restartServer()">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm4.3 7.7l-1.4 1.4-4.9 4.9-3.5-3.5-1.4 1.4 4.9 4.9 6.3-6.3-1.4-1.4z"/>
+                            </svg>
+                            重启
+                        </button>
+                        <button class="control-btn logout-btn" onclick="logoutServer()">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M10 2v5h2V4h7v16h-7v-3h-2v5h-3V2h3zm-4 0H3c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h3v-5h2v5h3V2H6zm10 5h3l-4 4 4 4h-3v5h-2v-5H8v-2h6V7z"/>
+                            </svg>
+                            注销
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-actions">
+            <!-- 添加暂停/继续按钮 -->
+            <button id="pause-btn" class="control-btn pause-btn">
+                <svg viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                </svg>
+                <span>暂停画面</span>
+            </button>
+            <button id="fullscreen-btn" class="control-btn fullscreen-btn">
+                <svg viewBox="0 0 24 24">
+                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                </svg>
+                全屏显示
+            </button>
+            <button class="btn btn-outline" onclick="disconnect()">断开连接</button>
+        </div>
+
+        <div class="card mobile-log-section log-section">
+            <div class="log-header">
+                <div class="log-title">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    连接日志
+                </div>
+                <button class="log-clear" onclick="clearLogs()">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                    </svg>
+                    清空
+                </button>
+            </div>
+            <div id="connection-log"></div>
+            <div class="log-controls">
+                <button id="log-toggle-btn" class="log-toggle-btn">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6-1.41-1.41z"/>
+                    </svg>
+                    <span id="log-toggle-text">显示更多</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // 全局变量
+        let socket = null;
+        const MAX_VISIBLE_LOGS = 5;
+        let logsExpanded = false;
+        // 添加画面暂停状态变量
+        let isPaused = false;
+        // 存储当前画面数据，用于暂停时显示
+        let currentFrameData = null;
+
+        // 页面加载完成后执行
+        window.addEventListener('DOMContentLoaded', () => {
+            // 初始化时添加错误监听，捕获未处理的异常
+            window.addEventListener('error', (e) => {
+                addToLog(`未捕获错误or请等待当前操作完成: ${e.error.message}`, 'error');
+                console.error('全局错误:', e.error);
+            });
+
+            addToLog('页面加载完成，开始初始化...', 'info');
+            
+            // 绑定日志展开/折叠按钮事件
+            document.getElementById('log-toggle-btn').addEventListener('click', toggleLogs);
+            
+            // 绑定暂停/继续按钮事件
+            document.getElementById('pause-btn').addEventListener('click', togglePause);
+            
+            // 测试基本HTTP连通性
+            fetch('/test')
+                .then(response => {
+                    addToLog('测试端点响应状态: ' + response.status, 'info');
+                    return response.text();
+                })
+                .then(data => {
+                    addToLog('测试端点响应内容: ' + data, 'info');
+                })
+                .catch(error => {
+                    addToLog('测试端点请求失败: ' + error.message, 'error');
+                });
+
+            try {
+                // 检查必要UI元素
+                const requiredElements = [
+                    'connection-status', 'auth-status', 'fps', 
+                    'image-status', 'auth-key', 'authenticate-btn', 'connection-log',
+                    'screen-indicator', 'screen-status', 'pause-btn', 'pause-overlay'
+                ];
+                requiredElements.forEach(id => {
+                    const elem = document.getElementById(id);
+                    if (!elem) throw new Error(`缺少必要UI元素: ${id}`);
+                });
+
+                // 初始化画面状态
+                updateScreenStatus('等待中', 'waiting');
+
+                // 初始化认证按钮状态
+                const authBtn = document.getElementById('authenticate-btn');
+                authBtn.disabled = false;
+                authBtn.addEventListener('click', handleAuthClick);
+                addToLog('UI元素检查通过，等待用户认证', 'info');
+                
+                // 监听屏幕方向变化
+                window.addEventListener('orientationchange', handleOrientationChange);
+                handleOrientationChange();
+            } catch (error) {
+                addToLog(`初始化错误: ${error.message}`, 'error');
+                console.error('初始化失败:', error);
+            }
+        });
+
+        // 处理认证按钮点击
+        function handleAuthClick() {
+            const authKey = document.getElementById('auth-key').value.trim();
+            if (!authKey) {
+                addToLog('错误: 请输入访问密钥', 'error');
+                return;
+            }
+            
+            addToLog('用户点击认证按钮，开始连接流程', 'info');
+            const authBtn = document.getElementById('authenticate-btn');
+            authBtn.disabled = true;
+            authBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                    <path d="M15.07 1.01h-6v2h6v-2zm-4 13h2v-6h-2v6zm8.03-6.62l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.14 4.74 14.19 4 12.07 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.11-.74-4.06-1.97-5.61z"/>
+                </svg>
+                连接中...
+            `;
+            startConnectionWithKey(authKey);
+        }
+
+        // 处理屏幕方向变化
+        function handleOrientationChange() {
+            const orientation = window.orientation;
+            const screenSection = document.querySelector('.screen-section');
+            
+            if (orientation === 90 || orientation === -90) {
+                addToLog('检测到横屏模式，优化显示', 'info');
+                screenSection.style.height = '80vh';
+            } else {
+                screenSection.style.height = window.innerWidth > 768 ? '60vh' : '45vh';
+            }
+        }
+
+        // 添加日志到UI
+        function addToLog(message, type = 'info') {
+            const logElement = document.getElementById('connection-log');
+            if (!logElement) return;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+            
+            logElement.prepend(logEntry);
+            updateLogCount();
+            
+            if (!logsExpanded) {
+                truncateLogs();
+            }
+            
+            logElement.scrollTop = 0;
+        }
+
+        function updateLogCount() {
+            return;
+        }
+
+        // 截断日志
+        function truncateLogs() {
+            const logEntries = document.querySelectorAll('.log-entry');
+            
+            if (logEntries.length > MAX_VISIBLE_LOGS) {
+                for (let i = MAX_VISIBLE_LOGS; i < logEntries.length; i++) {
+                    logEntries[i].classList.add('hidden');
+                }
+                document.getElementById('log-toggle-btn').style.display = 'flex';
+            } else {
+                document.getElementById('log-toggle-btn').style.display = logEntries.length > MAX_VISIBLE_LOGS ? 'flex' : 'none';
+            }
+        }
+
+        // 切换日志展开/折叠状态
+        function toggleLogs() {
+            const logEntries = document.querySelectorAll('.log-entry');
+            const toggleBtn = document.getElementById('log-toggle-btn');
+            const toggleText = document.getElementById('log-toggle-text');
+            const toggleIcon = toggleBtn.querySelector('svg');
+            
+            logsExpanded = !logsExpanded;
+            
+            if (logsExpanded) {
+                logEntries.forEach(entry => {
+                    entry.classList.remove('hidden');
+                });
+                toggleText.textContent = '显示较少';
+                toggleIcon.innerHTML = '<path d="M12 5.83L15.17 9l1.41-1.41L12 3 7.41 7.59 8.83 9 12 5.83z"/>';
+            } else {
+                truncateLogs();
+                toggleText.textContent = '显示更多';
+                toggleIcon.innerHTML = '<path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6-1.41-1.41z"/>';
+            }
+            
+            document.getElementById('connection-log').scrollTop = 0;
+        }
+
+        // 清空日志
+        function clearLogs() {
+            const logElement = document.getElementById('connection-log');
+            if (logElement) {
+                logElement.innerHTML = '';
+                updateLogCount();
+                addToLog('日志已清空', 'info');
+            }
+        }
+
+        // 使用密钥启动连接
+        function startConnectionWithKey(authKey) {
+            addToLog(`使用密钥连接，开始服务器连通性测试...`, 'info');
+            
+            // 先测试基础连接
+            fetch('/ping')
+                .then(response => {
+                    if (!response.ok) throw new Error(`服务器响应错误: HTTP ${response.status}`);
+                    return response.text();
+                })
+                .then(pingRes => {
+                    addToLog(`服务器连通性测试成功: ${pingRes}`, 'info');
+                    
+                    const socketUrl = `${window.location.protocol}//${window.location.host}`;
+                    addToLog(`连接目标: ${socketUrl}`, 'info');
+
+                    // 连接方式尝试
+                    const transportMethods = ['websocket', 'polling'];
+                    let currentTransportIndex = 0;
+
+                    function attemptConnection() {
+                        if (currentTransportIndex >= transportMethods.length) {
+                            addToLog('所有连接方式均失败，请检查服务器状态', 'error');
+                            resetAuthButton();
+                            return;
+                        }
+
+                        const transport = transportMethods[currentTransportIndex];
+                        addToLog(`尝试使用${transport}方式连接...`, 'info');
+
+                        // 销毁之前的socket实例
+                        if (socket) {
+                            socket.disconnect();
+                            socket.removeAllListeners();
+                        }
+
+                        // 创建新的Socket实例
+                        socket = io(socketUrl, {
+                            transports: [transport],
+                            autoConnect: false,
+                            reconnection: false,
+                            timeout: 10000,
+                            pingTimeout: 5000,
+                            pingInterval: 2500
+                        });
+
+                        // 监听Socket事件
+                        socket.on('connect', () => {
+                            addToLog(`Socket连接成功 (SID: ${socket.id})`, 'info');
+                            updateStatus('connection', '已连接 (SID: ' + socket.id + ')', 'connected');
+                            addToLog('发送认证请求...', 'info');
+                            socket.emit('authenticate', authKey);
+                        });
+
+                        socket.on('authenticated', function(data) {
+                            if (data.status === 'success') {
+                                addToLog(`认证成功: ${data.message}`, 'info');
+                                updateStatus('auth', '已认证', 'authenticated');
+                                updateScreenStatus('正常', 'connected');
+                                addToLog('认证成功，等待屏幕数据...', 'info');
+                                // 设置暂停状态响应监听器
+                                setupPauseResponseListener();
+                            }
+                        });
+
+                        socket.on('authentication_failed', function(data) {
+                            addToLog(`认证失败: ${data.message}`, 'error');
+                            updateStatus('auth', '认证失败', 'error');
+                            resetAuthButton();
+                        });
+
+                        socket.on('screen_update', (data) => {
+                            // 处理画面更新，根据暂停状态决定是否更新
+                            handleScreenUpdate(data);
+                        });
+
+                        socket.on('connect_error', (error) => {
+                            addToLog(`${transport}连接错误: ${error.message} (代码: ${error.code || '未知'})`, 'error');
+                            currentTransportIndex++;
+                            attemptConnection();
+                        });
+
+                        socket.on('connect_timeout', () => {
+                            addToLog(`${transport}连接超时`, 'warning');
+                            currentTransportIndex++;
+                            attemptConnection();
+                        });
+
+                        socket.on('disconnect', (reason) => {
+                            addToLog(`连接断开: ${reason}`, 'warning');
+                            updateStatus('connection', '已断开', 'error');
+                            updateStatus('auth', '未认证', 'waiting');
+                            updateScreenStatus('已断开', 'error');
+                            resetAuthButton();
+                        });
+
+                        // 手动连接
+                        try {
+                            socket.connect();
+                        } catch (error) {
+                            addToLog(`${transport}连接失败: ${error.message}`, 'error');
+                            currentTransportIndex++;
+                            attemptConnection();
+                        }
+                    }
+
+                    // 开始第一次连接尝试
+                    attemptConnection();
+                })
+                .catch(error => {
+                    addToLog(`服务器连通性测试失败: ${error.message}`, 'error');
+                    resetAuthButton();
+                });
+        }
+
+        // 处理屏幕更新数据 - 添加暂停逻辑
+        function handleScreenUpdate(data) {
+            if (!data || !data.image_data) {
+                addToLog('收到无效的屏幕数据', 'warning');
+                return;
+            }
+
+            try {
+                // 保存当前帧数据，无论是否暂停
+                currentFrameData = data;
+
+                // 如果未暂停，则更新画面
+                if (!isPaused) {
+                    const imageUrl = `data:image/jpeg;base64,${data.image_data}`;
+                    const imgElement = document.getElementById('screen-image');
+                    const placeholder = document.getElementById('screen-placeholder');
+
+                    imgElement.src = imageUrl;
+                    imgElement.style.display = 'block';
+                    placeholder.style.display = 'none';
+                    
+                    updateFPS();
+                    document.getElementById('image-status').textContent = '正常';
+                }
+            } catch (error) {
+                addToLog(`处理屏幕数据错误: ${error.message}`, 'error');
+                document.getElementById('image-status').textContent = '加载错误';
+            }
+        }
+
+        // 添加画面状态更新函数
+        function updateScreenStatus(text, status) {
+            const textElem = document.getElementById('screen-status');
+            const indicatorElem = document.getElementById('screen-indicator');
+            
+            if (textElem) textElem.textContent = text;
+            if (indicatorElem) {
+                indicatorElem.className = 'status-indicator';
+                indicatorElem.classList.add(`indicator-${status}`);
+            }
+        }
+
+        // 更新状态显示
+        function updateStatus(type, text, status) {
+            const statusMap = {
+                'connection': {
+                    text: 'connection-status',
+                    indicator: 'connection-indicator'
+                },
+                'auth': {
+                    text: 'auth-status',
+                    indicator: 'auth-indicator'
+                }
+            };
+
+            if (!statusMap[type]) return;
+
+            const textElem = document.getElementById(statusMap[type].text);
+            const indicatorElem = document.getElementById(statusMap[type].indicator);
+            
+            if (textElem) textElem.textContent = text;
+            if (indicatorElem) {
+                indicatorElem.className = 'status-indicator';
+                indicatorElem.classList.add(`indicator-${status}`);
+            }
+        }
+
+        // 重置认证按钮状态
+        function resetAuthButton() {
+            const btn = document.getElementById('authenticate-btn');
+            btn.disabled = false;
+            btn.innerHTML = `
+                <svg viewBox="0 0 24 24">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+                验证
+            `;
+            
+            // 恢复暂停按钮状态
+            const pauseBtn = document.getElementById('pause-btn');
+            pauseBtn.innerHTML = `
+                <svg viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                </svg>
+                <span>暂停画面</span>
+            `;
+            pauseBtn.disabled = false;
+            pauseBtn.classList.remove('resume-btn');
+            pauseBtn.classList.add('pause-btn');
+        }
+
+        // 服务器控制功能
+        function sendServerCommand(action) {
+            if (!socket || !socket.connected) {
+                addToLog('错误: 未建立有效连接，无法发送命令', 'error');
+                return false;
+            }
+
+            socket.emit('server_command', { action: action });
+            return true;
+        }
+
+        function shutdownServer() {
+            if (confirm('确定要关闭服务器吗？此操作不可恢复！')) {
+                if (sendServerCommand('shutdown')) {
+                    addToLog('已发送关机命令', 'warning');
+                }
+            }
+        }
+
+        function restartServer() {
+            if (confirm('确定要重启服务器吗？')) {
+                if (sendServerCommand('restart')) {
+                    addToLog('已发送重启命令', 'info');
+                }
+            }
+        }
+
+        function logoutServer() {
+            if (confirm('确定要注销服务器当前用户吗？')) {
+                if (sendServerCommand('logout')) {
+                    addToLog('已发送注销命令', 'info');
+                }
+            }
+        }
+
+        // 帧率计算
+        let frameCount = 0;
+        let lastFpsUpdateTime = Date.now();
+        
+        function updateFPS() {
+            // 暂停时不更新帧率
+            if (isPaused) return;
+            
+            frameCount++;
+            const now = Date.now();
+            
+            if (now - lastFpsUpdateTime >= 1000) {
+                const fps = Math.round(frameCount * 1000 / (now - lastFpsUpdateTime));
+                document.getElementById('fps').textContent = `${fps} FPS`;
+                
+                frameCount = 0;
+                lastFpsUpdateTime = now;
+            }
+        }
+
+        // 全屏功能
+        function toggleFullscreen() {
+            const screenContainer = document.querySelector('.screen-container');
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            
+            const isFullscreen = !!(document.fullscreenElement || 
+                                   document.webkitFullscreenElement || 
+                                   document.msFullscreenElement || 
+                                   document.mozFullScreenElement);
+
+            try {
+                if (!isFullscreen) {
+                    if (screenContainer.requestFullscreen) {
+                        screenContainer.requestFullscreen();
+                    } else if (screenContainer.webkitRequestFullscreen) {
+                        screenContainer.webkitRequestFullscreen();
+                    } else if (screenContainer.msRequestFullscreen) {
+                        screenContainer.msRequestFullscreen();
+                    } else if (screenContainer.mozRequestFullScreen) {
+                        screenContainer.mozRequestFullScreen();
+                    } else {
+                        addToLog('您的浏览器不支持全屏API', 'warning');
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    } else if (document.msExitFullscreen) {
+                        document.msExitFullscreen();
+                    } else if (document.mozCancelFullScreen) {
+                        document.mozCancelFullScreen();
+                    }
+                }
+            } catch (error) {
+                addToLog(`全屏操作失败: ${error.message}`, 'error');
+                console.error('全屏错误:', error);
+            }
+        }
+
+        // 监听全屏状态变化
+        function handleFullscreenChange(forcedState) {
+            const isFullscreen = forcedState !== undefined ? forcedState : 
+                                !!(document.fullscreenElement || 
+                                   document.webkitFullscreenElement || 
+                                   document.msFullscreenElement || 
+                                   document.mozFullScreenElement);
+                                   
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            
+            if (isFullscreen) {
+                addToLog('已进入全屏模式，按ESC键或点击退出按钮退出', 'info');
+                fullscreenBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24">
+                        <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                    </svg>
+                    退出全屏
+                `;
+            } else {
+                addToLog('已退出全屏模式', 'info');
+                fullscreenBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24">
+                        <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                    </svg>
+                    全屏显示
+                `;
+            }
+        }
+
+        document.addEventListener('fullscreenchange', () => handleFullscreenChange());
+        document.addEventListener('webkitfullscreenchange', () => handleFullscreenChange());
+        document.addEventListener('msfullscreenchange', () => handleFullscreenChange());
+        document.addEventListener('mozfullscreenchange', () => handleFullscreenChange());
+        
+        // 断开连接函数
+        function disconnect() {
+            if (socket && socket.connected) {
+                addToLog('用户请求断开连接', 'info');
+                socket.disconnect();
+            }
+            window.location.href = '/';
+        }
+
+        // 切换暂停/继续时调用
+        function togglePauseRemote() {
+            if (socket && socket.connected) {
+                socket.emit('toggle_pause');
+            } else {
+                addToLog('未连接到服务器，无法控制暂停状态', 'error');
+            }
+        }
+
+        // 接收服务器的暂停状态响应
+        function setupPauseResponseListener() {
+            if (socket) {
+                socket.on('pause_response', (data) => {
+                    addToLog(data.message, data.status === 'error' ? 'error' : 'info');
+                    // 这里可以更新UI显示当前暂停状态
+                });
+            }
+        }
+
+        // 断开连接但不跳转页面
+        function disconnectWithoutRedirect() {
+            if (socket && socket.connected) {
+                addToLog('用户请求断开连接', 'info');
+                socket.disconnect();
+                updateStatus('connection', '已断开', 'error');
+                updateStatus('auth', '未认证', 'waiting');
+                updateScreenStatus('已断开', 'error');
+                resetAuthButton();
+            }
+        }
+
+        // 暂停/继续画面切换函数
+        function togglePause() {
+            const connectionStatus = document.getElementById('connection-status').textContent;
+            const pauseBtn = document.getElementById('pause-btn');
+            
+            // 检查是否已连接
+            if (connectionStatus.includes('已连接')) {
+                // 已连接状态，断开连接
+                disconnectWithoutRedirect();
+                
+                pauseBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>	        
+                    </svg>
+                    <span>暂停画面</span>
+                `;
+                pauseBtn.disabled = false;
+                updateScreenStatus('已断开', 'error');
+                document.getElementById('fps').textContent = '0 FPS';
+            } else if (connectionStatus.includes('已断开') || connectionStatus.includes('未认证')) {
+                // 断开状态，尝试重新连接
+                startConnection();
+                
+                pauseBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    <span>暂停</span>
+                `;
+                pauseBtn.disabled = false;
+                updateStatus('connection', '连接中...', 'waiting');
+                updateScreenStatus('连接中...', 'waiting');
+            } else {
+                addToLog('请等待当前操作完成', 'warning');
+            }
+        }
+    </script>
+    <script>
+        // 移动端控制区域折叠功能
+        document.addEventListener('DOMContentLoaded', function() {
+            const controlCards = document.querySelectorAll('.control-section .card');
+            controlCards.forEach(card => {
+                if (window.innerWidth <= 768) {
+                    card.classList.add('collapsible-section');
+                    
+                    const title = card.querySelector('.card-title, .log-header');
+                    title.classList.add('collapse-header');
+                    
+                    if (!card.classList.contains('log-section')) {
+                        const collapseIcon = document.createElement('svg');
+                        collapseIcon.className = 'collapse-icon';
+                        collapseIcon.setAttribute('viewBox', '0 0 24 24');
+                        collapseIcon.setAttribute('width', '20');
+                        collapseIcon.setAttribute('height', '20');
+                        collapseIcon.innerHTML = '<path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>';
+                        title.appendChild(collapseIcon);
+                    }
+                    
+                    const contentWrapper = document.createElement('div');
+                    contentWrapper.className = 'collapse-content';
+                    
+                    while (card.children.length > 1) {
+                        contentWrapper.appendChild(card.children[1]);
+                    }
+                    card.appendChild(contentWrapper);
+                    
+                    if (!card.isSameNode(controlCards[0])) {
+                        card.classList.add('collapsed');
+                    }
+                    
+                    title.addEventListener('click', function() {
+                        card.classList.toggle('collapsed');
+                    });
+                }
+            });
+
+            // 屏幕触摸事件支持
+            const screenContainer = document.querySelector('.screen-container');
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let touchTime = 0;
+            let isDragging = false;
+
+            screenContainer.addEventListener('touchstart', function(e) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                touchTime = Date.now();
+                isDragging = false;
+            });
+
+            screenContainer.addEventListener('touchmove', function(e) {
+                // 暂停状态下不处理触摸移动
+                if (isPaused || !socket || !socket.connected) return;
+                
+                e.preventDefault();
+                
+                const touchX = e.touches[0].clientX;
+                const touchY = e.touches[0].clientY;
+                const dx = Math.abs(touchX - touchStartX);
+                const dy = Math.abs(touchY - touchStartY);
+                
+                if (dx > 5 || dy > 5) {
+                    isDragging = true;
+                    
+                    const rect = screenContainer.getBoundingClientRect();
+                    const x = Math.round(touchX - rect.left);
+                    const y = Math.round(touchY - rect.top);
+                    
+                    if (socket.connected) {
+                        socket.emit('touch_event', {
+                            type: 'move',
+                            x: x,
+                            y: y,
+                            timestamp: Date.now()
+                        });
+                    }
+                }
+            });
+
+            screenContainer.addEventListener('touchend', function(e) {
+                // 暂停状态下不处理触摸点击
+                if (isPaused || !socket || !socket.connected || isDragging) return;
+                
+                const touchEndX = e.changedTouches[0].clientX;
+                const touchEndY = e.changedTouches[0].clientY;
+                
+                const dx = Math.abs(touchEndX - touchStartX);
+                const dy = Math.abs(touchEndY - touchStartY);
+                const dt = Date.now() - touchTime;
+                
+                if (dx < 10 && dy < 10 && dt < 300) {
+                    const rect = screenContainer.getBoundingClientRect();
+                    const x = Math.round(touchEndX - rect.left);
+                    const y = Math.round(touchEndY - rect.top);
+                    
+                    const width = rect.width;
+                    const height = rect.height;
+                    
+                    if (socket.connected) {
+                        socket.emit('touch_event', {
+                            type: 'click',
+                            x: x,
+                            y: y,
+                            screenWidth: width,
+                            screenHeight: height,
+                            timestamp: Date.now()
+                        });
+                        addToLog(`发送触摸点击: (${x}, ${y})`, 'info');
+                    }
+                }
+            });
+
+            window.addEventListener('resize', function() {
+                const controlCards = document.querySelectorAll('.control-section .card');
+                
+                if (window.innerWidth > 768) {
+                    controlCards.forEach(card => {
+                        card.classList.remove('collapsed');
+                    });
+                } else {
+                    controlCards.forEach((card, index) => {
+                        if (index === 0) {
+                            card.classList.remove('collapsed');
+                        } else {
+                            card.classList.add('collapsed');
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
