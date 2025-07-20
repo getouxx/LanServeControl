@@ -20,4 +20,7 @@
 - **配置管理**：configparser
 - **日志系统**：Python内置logging
 
-## 项目结构
+## 项目结构##
+采用Python，HTML写
+#重要#
+##需要解压.venv.zip##
