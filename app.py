@@ -347,7 +347,7 @@ def handle_server_command(data):
             'message': f'命令执行失败: {str(e)}'
         })
 
-# 路由定义
+# 路由定义 
 @app.route('/ping')
 def ping():
     current_time = time.strftime('%Y-%m-%d %H:%M:%S')
